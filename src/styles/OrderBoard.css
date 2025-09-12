@@ -1,0 +1,186 @@
+/* === Main Container === */
+.order-board {
+  padding: 24px;
+  background: #f4f5f7;
+  font-family: 'Inter', Arial, sans-serif;
+  color: #1f2937; /* Neutral dark for text */
+  min-height: 100vh;
+}
+
+/* === Status Bar === */
+.status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.status-left span {
+  margin-right: 20px;
+  font-weight: 500;
+  color: #374151;
+  font-size: 15px;
+}
+
+.status-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.status-btn {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.status-btn:hover {
+  transform: translateY(-2px);
+}
+
+/* Priority Colors */
+.status-5min {
+  background-color: #fbbf24; /* Amber */
+  color: #1f2937;
+}
+
+.status-10min {
+  background-color: #f97316; /* Orange */
+}
+
+.status-15min {
+  background-color: #dc2626; /* Red */
+}
+
+/* === Main Layout === */
+.main-grid {
+  display: grid;
+  grid-template-columns: 3fr 1fr;
+  gap: 20px;
+}
+
+.orders-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+@media (max-width: 1024px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* === Order Card === */
+.order-card {
+  border-radius: 12px;
+  padding: 18px;
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.order-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.15);
+}
+
+.order-card.red {
+  background-color: #dc2626; /* High priority */
+}
+
+.order-card.orange {
+  background-color: #f97316; /* Medium priority */
+}
+
+.order-card.yellow {
+  background-color: #fbbf24; /* Low priority */
+  color: #1f2937;
+}
+
+.order-card h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+.order-time {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 14px;
+}
+
+.order-section h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 10px 0 6px;
+}
+
+.order-section ul {
+  list-style: disc inside;
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.done-btn {
+  margin-top: 14px;
+  width: 100%;
+  padding: 10px;
+  background: #f9fafb;
+  color: #111827;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #e5e7eb;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.done-btn:hover {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+}
+
+/* === Pending Summary === */
+.pending-summary {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.pending-summary h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+
+.pending-summary ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pending-summary li {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 15px;
+}
+
+.pending-summary li:last-child {
+  border-bottom: none;
+}
+
+.pending-count {
+  font-weight: 700;
+  color: #1f2937;
+}

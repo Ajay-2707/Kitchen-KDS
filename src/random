@@ -1,0 +1,93 @@
+import React, { useState } from "react";
+import "../styles/KitchenScreen.css";
+
+function KitchenScreen() {
+const [status, setStatus] = useState("Pending");
+  const [orders, setOrders] = useState([
+    { id: 1, orderType: "Dine-in", items: ["Margherita Pizza", "Garlic Bread"], status: "Pending" },
+    { id: 2, orderType: "Take Away", items: ["Pasta Alfredo","Cheese Sticks"], status: "Cooking" },
+    { id: 3, orderType: "Home Delivery", items: ["Garlic Bread", "Cheese Sticks", "Tomato Soup"], status: "Ready" },
+    { id: 4, orderType: "Dine-in", items: ["Margherita Pizza", "Garlic Bread"], status: "Pending" },
+    { id: 5, orderType: "Take Away", items: ["Pasta Alfredo","Cheese Sticks"], status: "Cooking" },
+    { id: 6, orderType: "Home Delivery", items: ["Garlic Bread", "Cheese Sticks", "Tomato Soup"], status: "Ready" },
+    { id: 7, orderType: "Dine-in", items: ["Margherita Pizza", "Garlic Bread"], status: "Pending" },
+    { id: 8, orderType: "Take Away", items: ["Pasta Alfredo","Cheese Sticks"], status: "Cooking" },
+    { id: 9, orderType: "Home Delivery", items: ["Garlic Bread", "Cheese Sticks", "Tomato Soup"], status: "Ready" },
+    { id: 10, orderType: "Home Delivery", items: ["Garlic Bread", "Cheese Sticks", "Tomato Soup"], status: "Ready" },
+  ]);
+
+  const updateStatus = (id, newStatus) => {
+    setOrders((prevOrders) =>
+      prevOrders.map((order) =>
+        order.id === id ? { ...order, status: newStatus } : order
+      )
+    );
+  };
+  const getButtonStyle = (btnStatus) => ({
+    backgroundColor: status === btnStatus ? "#5cb85c" : "#f0f0f0",
+    color: status === btnStatus ? "#fff" : "#000",
+    padding: "8px 16px",
+    border: "1px solid #ccc",
+    borderRadius: "5px",
+    marginRight: "8px",
+    cursor: "pointer",
+  });
+
+  return (
+    <div className="kitchen-container">
+      <h2 className="kitchen-title">Kitchen Dashboard</h2>
+      <div className="kitchen-grid">
+        {orders.map((order) => (
+          <div key={order.id} className="kitchen-card">
+            {/* Ticket Header */}
+            <div className={`ticket-header ${order.orderType.toLowerCase().replace(" ", "-")}`}>
+              <span className="ticket-type">{order.orderType}</span>
+              <span className="ticket-id">Token #{order.id}</span>
+            </div>
+
+            {/* Item count */}
+            <p className="kitchen-item-count">
+              Items: {order.items.length}
+            </p>
+
+            {/* Item list */}
+            <ul className="kitchen-item-list">
+              {order.items.map((item, index) => (
+                <><li key={index}>{item}</li>
+                <li style={{ listStyle: "none" }}>
+      <button style={getButtonStyle("Pending")} onClick={() => setStatus("Pending")}>
+        Pending
+      </button>
+      <button style={getButtonStyle("Cooking")} onClick={() => setStatus("Cooking")}>
+        Cooking
+      </button>
+      <button style={getButtonStyle("Ready")} onClick={() => setStatus("Ready")}>
+        Ready
+      </button>
+    </li>
+                </>
+              ))}
+            </ul>
+
+            {/* Status */}
+            <p className={`kitchen-status ${order.status.toLowerCase()}`}>
+              Status: {order.status}
+            </p>
+
+            {/* Buttons */}
+            <div className="kitchen-buttons">
+              <button onClick={() => updateStatus(order.id, "Cooking")}>
+                Cooking
+              </button>
+              <button onClick={() => updateStatus(order.id, "Ready")}>
+                Ready
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default KitchenScreen;
