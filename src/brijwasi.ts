@@ -2,35 +2,21 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import "../styles/KitchenScreen.css";
 import Masonry from "react-masonry-css";
 import config from "../config.js";
-import { printKOT } from "../utils/printService";
-import { printKOTViaServer } from "../services/networkPrintService";
-import { printKOTViaUSB } from "../services/usbPrintService";
 
 function KitchenScreen() {
   const [showSummary, setShowSummary] = useState(false);
   const [clickStage, setClickStage] = useState({});
   // const [modalData, setModalData] = useState(null);
   const [modalMessage, setModalMessage] = useState(null); // null | "Accepted" | "Delivered"
+
   const [summary, setSummary] = useState([]);
   const [viewMode, setViewMode] = useState("item"); // "kot" | "item"
-  const [printEnabled, setPrintEnabled] = useState(() => {
-    const saved = localStorage.getItem("printEnabled");
-    return saved !== null ? JSON.parse(saved) : false;
-  });
-  const printMode = config.printMode;
 
-  const handlePrintToggle = () => {
-    setPrintEnabled((prev) => {
-      const newValue = !prev;
-      localStorage.setItem("printEnabled", JSON.stringify(newValue));
-      return newValue;
-    });
-  };
   const [orders, setOrders] = useState(
     [].map((order) => ({
       ...order,
       timestamp: new Date().getTime(),
-    })),
+    }))
   );
 
   const [now, setNow] = useState(Date.now());
@@ -41,31 +27,37 @@ function KitchenScreen() {
   const orderTypes = ["Dine-in", "Take Away", "Delivery", "Table billing"];
   const statuses = ["Pending", "Delivered", "Cancelled"]; // <- added "Cooking"
   const prevOrdersCount = useRef(0);
-  const audioRef = useRef(null);
+
+  // ===== NEW: normalized selection state =====
+  // selection = { mode: 'kot', orderId } | { mode: 'item', orderId, itemIndex }
+  // const [selection, setSelection] = useState(null);
+
+  // useEffect(() => {
+  //   const fetchSummary = async () => {
+  //     try {
+  //       const response = await fetch(
+  //         `${config.apiBaseUrl}/summary?kds=${encodeURIComponent(config.kdsName)}`
+  //       );
+  //       const data = await response.json();
+  //       console.log("KDS Summary:", data);
+  //     } catch (error) {
+  //       console.error("Error fetching summary:", error);
+  //     }
+  //   };
+
+  //   fetchSummary();
+  // }, []);
 
   useEffect(() => {
-    audioRef.current = new Audio("/new_ticket.mp3");
-    audioRef.current.loop = true;
-
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    const hasPendingOrders = orders.some((order) =>
-      order.items.some((item) => item.status === "Pending"),
-    );
-
-    if (hasPendingOrders) {
-      audioRef.current?.play().catch(() => {});
-    } else {
-      audioRef.current?.pause();
-      audioRef.current.currentTime = 0;
+    if (orders.length > prevOrdersCount.current) {
+      // const newOrder = orders.reduce((latest, order) =>
+      //   order.id > latest.id ? order : latest
+      // );
+      const audio = new Audio("/new_ticket.mp3");
+      audio.load();
+      audio.play().catch((err) => console.log("Autoplay blocked:", err));
     }
+    prevOrdersCount.current = orders.length;
   }, [orders]);
 
   useEffect(() => {
@@ -74,11 +66,10 @@ function KitchenScreen() {
       try {
         const res = await fetch(
           `${config.apiBaseUrl}/orders?kds=${encodeURIComponent(
-            config.kdsName,
-          )}`,
+            config.kdsName
+          )}`
         );
         const data = await res.json();
-
         if (Array.isArray(data)) {
           const orders = transformApiData(data);
           setOrders(orders);
@@ -99,8 +90,8 @@ function KitchenScreen() {
       try {
         const res = await fetch(
           `${config.apiBaseUrl}/summary?kds=${encodeURIComponent(
-            config.kdsName,
-          )}`,
+            config.kdsName
+          )}`
         );
         const data = await res.json();
         setSummary(data.Data || data);
@@ -119,39 +110,26 @@ function KitchenScreen() {
       0: "Pending",
       1: "Accepted",
     };
-
     const orderTypeMap = {
-      "Table billing": "Table",
+      "Table billing": "Table billing",
       "Dine-in": "Dine-in",
       "Take Away": "Take Away",
       Delivery: "Delivery",
-      zomato: "ZOMATO",
     };
-
     const orderStatusMap = {
       0: "Pending",
       1: "Deliverd",
     };
-
     const groupedOrders = {};
 
     apiData.forEach((item) => {
-      // GROUP BY BILL NO
-      const bill = item.BillNO;
-
-      if (!groupedOrders[bill]) {
-        groupedOrders[bill] = {
-          ID: item.ID,
-
-          // Keep KOT internally for API/printing
-          id: item.KOT_NO,
-          kotId: item.KOT_NO,
-
-          TokenNo: item.TokenNo,
+      const kot = item.KOT_NO;
+      if (!groupedOrders[kot]) {
+        groupedOrders[kot] = {
+          id: kot,
           I_Code: item?.I_Code || "",
           orderType: orderTypeMap[item.bill_type] || "Unknown",
           tableNo: item.TableName || "N/A",
-          stwd: item.stwd || "-",
           name: item.I_Name,
           items: [],
           status: statusMap[item.ack_status] || "Pending",
@@ -161,13 +139,7 @@ function KitchenScreen() {
           orderStatus: orderStatusMap[item.order_status],
         };
       }
-
-      groupedOrders[bill].items.push({
-        ID: item.ID,
-
-        // IMPORTANT: keep each item's actual KOT
-        KOT_NO: item.KOT_NO,
-
+      groupedOrders[kot].items.push({
         name: item.I_Name,
         status: statusMap[item.ack_status] || "Pending",
         I_Code: item?.I_Code || "",
@@ -185,7 +157,7 @@ function KitchenScreen() {
 
   const handleFilterChange = (filter, setFilter, value) => {
     setFilter((prev) =>
-      prev.includes(value) ? prev.filter((f) => f !== value) : [...prev, value],
+      prev.includes(value) ? prev.filter((f) => f !== value) : [...prev, value]
     );
   };
 
@@ -199,108 +171,75 @@ function KitchenScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleDeliver = async (order) => {
-    try {
-      // =================================================
-      // TAKE PRINT SNAPSHOT BEFORE ANY STATUS UPDATE
-      // =================================================
+  // const updateStatus = async (orderId, newStatus) => {
+  //   try {
+  //     const order = orders.find((o) => o.id === orderId);
+  //     if (!order) return;
 
-      const printData = {
-        kotNo: order.__mode === "item" ? order.kotId : order.id,
+  //     const response = await fetch("http://192.168.1.13:5000/update", {
+  //       method: "PUT",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({
+  //         KOT_NO: order.id,
+  //         I_Code: "",
+  //         Bill_NO: order.Bill_NO,
+  //       }),
+  //     });
 
-        billNo: order.Bill_NO || "-",
+  //     const data = await response.json();
+  //     if (!response.ok) throw new Error(data.error || "Failed to update order");
 
-        billType: order.orderType || "N/A",
+  //     setOrders((prev) =>
+  //       prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+  //     );
+  //   } catch (error) {
+  //     console.error("Order update failed:", error);
+  //   }
+  // };
 
-        tableName: order.tableNo || "-",
+  //  const updateItemStatus = async (orderId, itemIndex, newStatus) => {
+  //   try {
+  //     const order = orders.find((o) => o.id === orderId);
+  //     if (!order) return;
 
-        tokenNo: order.TokenNo || "-",
+  //     const item = order.items[itemIndex];
 
-        steward: order.stwd || "-",
+  //     const response = await fetch("http://192.168.1.13:5000/update", {
+  //       method: "PUT",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({
+  //         KOT_NO: order.id,
+  //         I_Code: item.code || item.I_Code,
+  //         Bill_NO: order.Bill_NO,
+  //       }),
+  //     });
 
-        items: order.items
-          .filter((item) => item.qty !== "0")
-          .map((item) => ({
-            name: item.name,
-            qty: item.qty,
-          })),
-      };
+  //     const data = await response.json();
+  //     if (!response.ok) throw new Error(data.error || "Failed to update item");
 
-      console.log("🧾 PRINT DATA:", printData);
+  //     setOrders((prevOrders) =>
+  //       prevOrders.map((o) => {
+  //         if (o.id !== orderId) return o;
 
-      // =================================================
-      // PRINT FIRST
-      // =================================================
+  //         const updatedItems = o.items.map((it, idx) =>
+  //           idx === itemIndex ? { ...it, status: newStatus } : it
+  //         );
 
-      if (printEnabled && printData.items.length > 0) {
-        try {
-          console.log(`🖨️ Printing using ${printMode}:`, printData);
+  //         // Only update KOT status if all items are Delivered
+  //         const allDelivered = updatedItems.every(it => it.status === "Delivered");
 
-          switch (printMode) {
-            case "LAN":
-              await printKOTViaServer(printData);
+  //         return {
+  //           ...o,
+  //           items: updatedItems,
+  //           status: allDelivered ? "Delivered" : o.status, // keep old status until all delivered
+  //         };
+  //       })
+  //     );
+  //   } catch (error) {
+  //     console.error("Item update failed:", error);
+  //   }
+  // };
 
-              break;
-
-            case "USB":
-              await printKOTViaUSB(printData);
-
-              break;
-
-            default:
-              throw new Error(`Invalid print mode: ${printMode}`);
-          }
-
-          console.log(`✅ KOT printed via ${printMode}`);
-        } catch (printError) {
-          console.error(`❌ ${printMode} printing failed:`, printError);
-
-          /*
-           * DO NOT mark Delivered
-           * if printing failed.
-           */
-
-          setModalMessage({
-            message: "Printing failed. Order not delivered.",
-
-            kotNo: order.__mode === "item" ? order.kotId : order.id,
-
-            orderType: order.orderType,
-          });
-
-          return;
-        }
-      }
-
-      // =================================================
-      // PRINT SUCCESSFUL
-      // NOW UPDATE STATUS
-      // =================================================
-
-      console.log("✅ Printing completed. Updating status...");
-
-      await ackStatus(order, "Delivered");
-
-      // =================================================
-      // UPDATE UI
-      // =================================================
-
-      setClickStage((prev) => ({
-        ...prev,
-        [order.id]: "delivered",
-      }));
-
-      setModalMessage({
-        message: "Order Delivered",
-
-        kotNo: order.__mode === "item" ? order.kotId : order.id,
-
-        orderType: order.orderType,
-      });
-    } catch (error) {
-      console.error("❌ Delivery/Print failed:", error);
-    }
-  };
   const ackStatus = async (order, newStatus = "Accepted") => {
     try {
       const kotId = order.kotId ?? order.id;
@@ -308,80 +247,61 @@ function KitchenScreen() {
 
       if (order.__mode === "item") {
         // ITEM VIEW: always a single item
-        const item = order.items?.[order.__itemIndex] ?? order.items?.[0];
+        const item = order.items?.[order.__itemIndex] ?? order.items?.[0]; // fallback to [0]
 
         if (!item) {
           console.error("No item found for item mode:", order);
           return;
         }
-        console.log("Sending:", {
-          ID: item.ID,
-          KOT_NO: item.KOT_NO ?? kotId,
-          I_Code: item.I_Code,
-          Bill_NO,
-        });
-        console.log("Order:", order);
-        console.log("Items:", order.items);
-        console.log("Selected Item:", item);
 
-        await fetch(
-          `${config.apiBaseUrl}/accept?kds=${encodeURIComponent(config.kdsType)}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              ID: item.ID ?? item.id,
-              KOT_NO: item.KOT_NO ?? kotId,
-              I_Code: item.I_Code || item.code,
-              Bill_NO,
-            }),
-          },
-        );
+        await fetch(`${config.apiBaseUrl}/accept?kds=${encodeURIComponent(config.kdsType)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            KOT_NO: kotId,
+            I_Code: item.I_Code || item.code,
+            Bill_NO,
+          }),
+        });
       } else {
         // KOT VIEW: update all active items
         for (const item of order.items) {
-          if (item.qty === "0") continue;
-
-          await fetch(
-            `${config.apiBaseUrl}/accept?kds=${encodeURIComponent(config.kdsType)}`,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                ID: item.ID ?? item.id,
-                KOT_NO: item.KOT_NO ?? kotId,
-                I_Code: item.I_Code || item.code,
-                Bill_NO,
-              }),
-            },
-          );
+          if (item.qty === "0") continue; // skip cancelled
+          await fetch(`${config.apiBaseUrl}/accept?kds=${encodeURIComponent(config.kdsType)}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              KOT_NO: kotId,
+              I_Code: item.I_Code || item.code,
+              Bill_NO,
+            }),
+          });
         }
       }
 
       // Update frontend state
       setOrders((prevOrders) =>
         prevOrders.map((o) => {
-          if (String(o.Bill_NO) !== String(Bill_NO)) return o;
+          if (String(o.id) !== String(kotId)) return o;
 
           if (order.__mode === "item") {
             const idx = order.__itemIndex ?? 0;
-
             return {
               ...o,
               items: o.items.map((it, i) =>
-                i === idx ? { ...it, status: newStatus } : it,
+                i === idx ? { ...it, status: newStatus } : it
+              ),
+            };
+          } else {
+            return {
+              ...o,
+              status: newStatus,
+              items: o.items.map((it) =>
+                it.qty !== "0" ? { ...it, status: newStatus } : it
               ),
             };
           }
-
-          return {
-            ...o,
-            status: newStatus,
-            items: o.items.map((it) =>
-              it.qty !== "0" ? { ...it, status: newStatus } : it,
-            ),
-          };
-        }),
+        })
       );
     } catch (error) {
       console.error("Accept failed:", error);
@@ -398,88 +318,68 @@ function KitchenScreen() {
     cursor: "pointer",
   });
 
-  const getCardStyleMerged = (order, now = Date.now()) => {
-    const baseStyle = {
-      borderRadius: "12px",
-      transition: "border 0.3s ease",
-      border: "1px solid #ccc",
-      backgroundColor: "transparent",
-    };
-
-    if (!order.timestamp) {
-      return { style: baseStyle, shake: false };
-    }
-
-    const diffSecs = Math.floor(
-      (now - new Date(order.timestamp).getTime()) / 1000,
-    );
-    const diffMins = diffSecs / 60;
-    const hasAcceptedItem = order.items.some(
-      (item) => item.status === "Accepted",
-    );
-
-    // --- Timer overrides always win ---
-    if (diffMins >= 5 && !hasAcceptedItem) {
-      return {
-        style: {
-          ...baseStyle,
-          backgroundColor: "#fad9d9ff",
-          border: "3px solid red",
-        },
-        shake: true,
-      };
-    } else if (diffMins >= 5) {
-      return {
-        style: {
-          ...baseStyle,
-          backgroundColor: "#fad9d9ff",
-          border: "3px solid red",
-        },
-      };
-    }
-    // const hasAcceptedItem = order.items.some((item) => item.status === "Accepted");
-    if (diffMins >= 3 && !hasAcceptedItem) {
-      return {
-        style: {
-          ...baseStyle,
-          backgroundColor: "lightyellow",
-          border: "3px solid orange",
-        },
-        shake: true,
-      };
-    } else if (diffMins >= 3) {
-      return {
-        style: {
-          ...baseStyle,
-          backgroundColor: "lightyellow",
-          border: "3px solid orange",
-        },
-      };
-    }
-
-    // --- First 30s new order = Red + Shake until accepted ---
-    // const hasAcceptedItem = order.items.some((item) => item.status === "Accepted");
-    if (!hasAcceptedItem) {
-      return {
-        // style: { ...baseStyle, backgroundColor: "#fad9d9ff", border: "3px solid red" },
-        shake: true,
-      };
-    }
-
-    // --- Accepted but before overrides (3/5min) ---
-    if (hasAcceptedItem) {
-      return {
-        style: {
-          ...baseStyle,
-          backgroundColor: "#c4f9c4ff",
-          border: "3px solid green",
-        },
-        shake: false,
-      };
-    }
-
-    return { style: baseStyle, shake: false };
+const getCardStyleMerged = (order, now = Date.now()) => {
+  const baseStyle = {
+    borderRadius: "12px",
+    transition: "border 0.3s ease",
+    border: "1px solid #ccc",
+    backgroundColor: "transparent",
   };
+
+  if (!order.timestamp) {
+    return { style: baseStyle, shake: false };
+  }
+
+  const diffSecs = Math.floor((now - new Date(order.timestamp).getTime()) / 1000);
+  const diffMins = diffSecs / 60;
+    const hasAcceptedItem = order.items.some((item) => item.status === "Accepted");
+
+
+  // --- Timer overrides always win ---
+  if (diffMins >= 5 && !hasAcceptedItem) {
+    return {
+      style: { ...baseStyle, backgroundColor: "#fad9d9ff", border: "3px solid red" },
+      shake: true,
+    };
+  }
+  else if (diffMins >= 5) {
+    return {
+      style: { ...baseStyle, backgroundColor: "#fad9d9ff", border: "3px solid red" },
+    };
+  };
+  // const hasAcceptedItem = order.items.some((item) => item.status === "Accepted");
+  if (diffMins >= 3 && !hasAcceptedItem) {
+    return {
+      style: { ...baseStyle, backgroundColor: "lightyellow", border: "3px solid orange" },
+      shake: true,
+    };
+  }else if (diffMins >= 3) {
+    return {
+      style: { ...baseStyle, backgroundColor: "lightyellow", border: "3px solid orange" },
+    };
+  };
+
+  // --- First 30s new order = Red + Shake until accepted ---
+  // const hasAcceptedItem = order.items.some((item) => item.status === "Accepted");
+  if ( !hasAcceptedItem) {
+    return {
+      // style: { ...baseStyle, backgroundColor: "#fad9d9ff", border: "3px solid red" },
+      shake: true,
+    };
+  }
+
+  // --- Accepted but before overrides (3/5min) ---
+  if (hasAcceptedItem) {
+    return {
+      style: { ...baseStyle, backgroundColor: "#c4f9c4ff", border: "3px solid green" },
+      shake: false,
+    };
+  }
+
+  return { style: baseStyle, shake: false };
+};
+
+
 
   // const getCardStyleMerged = (order, now = Date.now()) => {
   //   // Default style
@@ -526,7 +426,7 @@ function KitchenScreen() {
         kotId: o.id, // preserve source KOT id
         __mode: "item",
         __itemIndex: idx,
-      })),
+      }))
     );
   }, [orders, viewMode]);
 
@@ -542,10 +442,10 @@ function KitchenScreen() {
   };
 
   const savedConfig = localStorage.getItem("appConfig");
-  if (savedConfig) {
-    Object.assign(config, JSON.parse(savedConfig)); // Override defaults
-    // console.log(savedConfig);
-  }
+    if (savedConfig) {
+  Object.assign(config, JSON.parse(savedConfig)); // Override defaults
+  // console.log(savedConfig);  
+}
 
   useEffect(() => {
     if (!modalMessage) return;
@@ -642,25 +542,11 @@ function KitchenScreen() {
           >
             {showSummary ? "Hide Summary" : "Show Summary"}
           </button>
-          <button
-            onClick={handlePrintToggle}
-            style={{
-              padding: "8px 16px",
-              background: printEnabled ? "#007bff" : "#28a745",
-              color: "#fff",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-              transition: "background 0.3s ease",
-            }}
-          >
-            {printEnabled ? "Print on" : "Print off"}
-          </button>
         </div>
 
         <div className="status-filters">
           {statuses.map((status) => (
-            <label key={status}>
+            <label key={status} >
               <input
                 type="checkbox"
                 checked={statusFilter.includes(status)}
@@ -673,16 +559,12 @@ function KitchenScreen() {
             </label>
           ))}
         </div>
-
         <div className="count">
-          <div>
-            Total Count: <strong>{getVisibleCardCount()}</strong>{" "}
-          </div>
-          <div>
-            Pending KOTs: <strong>{getPendingKotCount()}</strong>{" "}
-          </div>
+          <div>Total Count: <strong>{getVisibleCardCount()}</strong> </div>
+          <div>Pending KOTs: <strong>{getPendingKotCount()}</strong> </div>
           {/* <p>Pending Items: {totalUniqueItems}</p> */}
         </div>
+        {/* <div><p>Total Pending KOTs: {totalUniqueItems}</p></div> */}
       </div>
 
       <div
@@ -693,150 +575,138 @@ function KitchenScreen() {
         }}
       >
         <Masonry
-          breakpointCols={
-            showSummary
-              ? { default: 4, 1400: 4, 1024: 3, 768: 2, 480: 1 } // with summary → 4 columns
-              : { default: 5, 1400: 4, 1024: 3, 768: 2, 480: 1 } // without summary → 5 columns
-          }
+           breakpointCols={
+      showSummary
+        ? { default: 4, 1400: 4, 1024: 3, 768: 2, 480: 1 } // with summary → 4 columns
+        : { default: 5, 1400: 4, 1024: 3, 768: 2, 480: 1 } // without summary → 5 columns
+    }
           className="kitchen-grid"
           columnClassName="kitchen-grid-column"
         >
           {displayData
-            .filter((order) => {
-              const typeMatch =
-                orderTypeFilter.length === 0 ||
-                orderTypeFilter.includes(order.orderType);
-              const statusMatch =
-                statusFilter.length === 0 ||
-                statusFilter.includes(order.status);
-              return typeMatch && statusMatch;
-            })
-            .sort(sortByKotIdDesc)
-            .map((order) => {
-              // Get style & shake info
-              const card = getCardStyleMerged(order, now);
+  .filter((order) => {
+    const typeMatch =
+      orderTypeFilter.length === 0 || orderTypeFilter.includes(order.orderType);
+    const statusMatch =
+      statusFilter.length === 0 || statusFilter.includes(order.status);
+    return typeMatch && statusMatch;
+  })
+  .sort(sortByKotIdDesc)
+  .map((order) => {
+    // Get style & shake info
+    const card = getCardStyleMerged(order, now);
 
-              return (
+    return (
+      <div
+        key={order.id}
+        className={`kitchen-card ${card.shake ? "shake" : ""}`} // shake class if needed
+        style={card.style} // updated styles
+      >
+        <div
+          className="Pressable-card"
+          onClick={() => {
+            const orderId = order.id;
+
+            if (!clickStage[orderId] || clickStage[orderId] === "delivered") {
+              // Accept order
+              ackStatus(order, "Accepted");
+              setClickStage((prev) => ({ ...prev, [orderId]: "accepted" }));
+              setModalMessage({
+                message: "Order Accepted",
+                kotNo: order.__mode === "item" ? order.kotId : order.id,
+                orderType: order.orderType,
+              });
+            } else if (clickStage[orderId] === "accepted") {
+              // Deliver order
+              ackStatus(order, "Delivered");
+              setClickStage((prev) => ({ ...prev, [orderId]: "delivered" }));
+              setModalMessage({
+                message: "Order Delivered",
+                kotNo: order.__mode === "item" ? order.kotId : order.id,
+                orderType: order.orderType,
+              });
+            }
+          }}
+        >
+          {/* --- Your existing card content --- */}
+          <div
+            className={`ticket-header ${order.orderType
+              .toLowerCase()
+              .replace(" ", "-")}`}
+          >
+            <span className="ticket-type">
+              {order.orderType === "Table billing" 
+    ? `${order.orderType} - ${order.tableNo}` 
+    : order.orderType
+  }
+            </span>
+            <span className="ticket-id">
+              KOT #{order.__mode === "item" ? order.kotId : order.id}
+            </span>
+          </div>
+
+          <ul className="kitchen-item-list">
+            {order.items.map((item, index) => (
+              <li key={index}>
                 <div
-                  key={
-                    order.__mode === "item"
-                      ? `${order.Bill_NO}-${order.__itemIndex}`
-                      : order.Bill_NO
-                  }
-                  className={`kitchen-card ${card.shake ? "shake" : ""}`} // shake class if needed
-                  style={card.style} // updated styles
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr auto auto",
+                    alignItems: "center",
+                    gap: "10px",
+                  }}
                 >
+                  <div>
+                    <strong
+                      style={{
+                        textDecoration: item.qty === "0" ? "line-through" : "none",
+                      }}
+                    >
+                      {item.name}
+                    </strong>
+                    <br />
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "blue",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {item.comments}
+                    </span>
+                  </div>
+                  <div>
+                    <strong
+                      style={{
+                        textDecoration: item.qty === "0" ? "line-through" : "none",
+                      }}
+                    >
+                      x {item.qty}
+                    </strong>
+                  </div>
                   <div
-                    className="Pressable-card"
-                    onClick={async () => {
-                      const orderId =
-                        order.__mode === "item"
-                          ? `${order.Bill_NO}-${order.__itemIndex}`
-                          : String(order.Bill_NO);
-
-                      if (
-                        !clickStage[orderId] ||
-                        clickStage[orderId] === "delivered"
-                      ) {
-                        // Accept order
-                        ackStatus(order, "Accepted");
-                        setClickStage((prev) => ({
-                          ...prev,
-                          [orderId]: "accepted",
-                        }));
-                        setModalMessage({
-                          message: "Order Accepted",
-                          kotNo:
-                            order.__mode === "item" ? order.kotId : order.id,
-                          orderType: order.orderType,
-                        });
-                      } else if (clickStage[orderId] === "accepted") {
-                        await handleDeliver(order);
-                      }
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "#666",
+                      fontWeight: "500",
+                      textDecoration: item.qty === "0" ? "line-through" : "none",
                     }}
                   >
-                    {/* --- Your existing card content --- */}
-                    <div
-                      className={`ticket-header ${order.orderType
-                        .toLowerCase()
-                        .replace(" ", "-")}`}
-                    >
-                      <span className="ticket-id">
-                        {/* Token #{order.TokenNo} */}
-                        {order.orderType === "Table"
-                          ? `Table #${order.tableNo}`
-                          : `Token #${order.TokenNo}`}
-                      </span>
-                      <span className="ticket-type">{order.orderType}</span>
-                      <span className="ticket-id">Bill #{order.Bill_NO}</span>
-                    </div>
-
-                    <ul className="kitchen-item-list">
-                      {order.items.map((item, index) => (
-                        <li key={index}>
-                          <div
-                            style={{
-                              display: "grid",
-                              gridTemplateColumns: "1fr auto auto",
-                              alignItems: "center",
-                              gap: "10px",
-                            }}
-                          >
-                            <div>
-                              <strong
-                                style={{
-                                  textDecoration:
-                                    item.qty === "0" ? "line-through" : "none",
-                                }}
-                              >
-                                {item.name}
-                              </strong>
-                              <br />
-                              <span
-                                style={{
-                                  fontSize: "0.75rem",
-                                  color: "blue",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {item.comments}
-                              </span>
-                            </div>
-                            <div>
-                              <strong
-                                style={{
-                                  textDecoration:
-                                    item.qty === "0" ? "line-through" : "none",
-                                }}
-                              >
-                                x {item.qty}
-                              </strong>
-                            </div>
-                            <div
-                              style={{
-                                fontSize: "0.8rem",
-                                color: "#666",
-                                fontWeight: "500",
-                                textDecoration:
-                                  item.qty === "0" ? "line-through" : "none",
-                              }}
-                            >
-                              {item.qty === "0" ? "Cancelled" : item.status}
-                            </div>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-
-                    <p className="kitchen-timer">
-                      <strong>
-                        Waiting: {getElapsedTime(order.timestamp)}
-                      </strong>
-                    </p>
+                    {item.qty === "0" ? "Cancelled" : item.status}
                   </div>
                 </div>
-              );
-            })}
+              </li>
+            ))}
+          </ul>
+
+          <p className="kitchen-timer">
+            <strong>Waiting: {getElapsedTime(order.timestamp)}</strong>
+          </p>
+        </div>
+      </div>
+    );
+  })}
+
         </Masonry>
         {showSummary && (
           <div className="kitchen-quatities">
@@ -1069,13 +939,10 @@ function KitchenScreen() {
               fontWeight: "bold",
               textAlign: "center",
             }}
-          >
-            Order Type:{modalMessage.orderType}
-            <br />
-            {modalMessage.message}
-            <br />
-            KOT No:{modalMessage.kotNo}
-            <br />
+          > 
+            Order Type:{modalMessage.orderType}<br/>
+            {modalMessage.message}<br/>
+            KOT No:{modalMessage.kotNo}<br/>
             <div style={{ marginTop: "15px" }}>
               <button
                 onClick={() => setModalMessage(null)}

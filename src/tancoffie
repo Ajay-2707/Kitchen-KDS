@@ -1,36 +1,26 @@
+/* eslint-disable no-unused-vars */
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import "../styles/KitchenScreen.css";
 import Masonry from "react-masonry-css";
 import config from "../config.js";
-import { printKOT } from "../utils/printService";
-import { printKOTViaServer } from "../services/networkPrintService";
-import { printKOTViaUSB } from "../services/usbPrintService";
+import RecallScreen from "./Recall.js";
+import { FaPrint } from "react-icons/fa";
 
 function KitchenScreen() {
+  const [showRecall, setShowRecall] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [clickStage, setClickStage] = useState({});
   // const [modalData, setModalData] = useState(null);
   const [modalMessage, setModalMessage] = useState(null); // null | "Accepted" | "Delivered"
+
   const [summary, setSummary] = useState([]);
   const [viewMode, setViewMode] = useState("item"); // "kot" | "item"
-  const [printEnabled, setPrintEnabled] = useState(() => {
-    const saved = localStorage.getItem("printEnabled");
-    return saved !== null ? JSON.parse(saved) : false;
-  });
-  const printMode = config.printMode;
 
-  const handlePrintToggle = () => {
-    setPrintEnabled((prev) => {
-      const newValue = !prev;
-      localStorage.setItem("printEnabled", JSON.stringify(newValue));
-      return newValue;
-    });
-  };
   const [orders, setOrders] = useState(
     [].map((order) => ({
       ...order,
       timestamp: new Date().getTime(),
-    })),
+    }))
   );
 
   const [now, setNow] = useState(Date.now());
@@ -41,31 +31,56 @@ function KitchenScreen() {
   const orderTypes = ["Dine-in", "Take Away", "Delivery", "Table billing"];
   const statuses = ["Pending", "Delivered", "Cancelled"]; // <- added "Cooking"
   const prevOrdersCount = useRef(0);
-  const audioRef = useRef(null);
 
-  useEffect(() => {
-    audioRef.current = new Audio("/new_ticket.mp3");
-    audioRef.current.loop = true;
+  const [actionModal, setActionModal] = useState({
+    show: false,
+    type: "", // "reject" or "lock"
+    order: null,
+    selectedItems: [],
+  });
 
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
-    };
-  }, []);
+  const runItemProcedure = async (I_Code, actionType) => {
+    try {
+      console.log("procedure run ");
 
-  useEffect(() => {
-    const hasPendingOrders = orders.some((order) =>
-      order.items.some((item) => item.status === "Pending"),
-    );
+      await fetch(`${config.apiBaseUrl}/${actionType}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ I_Code }),
+      });
 
-    if (hasPendingOrders) {
-      audioRef.current?.play().catch(() => {});
-    } else {
-      audioRef.current?.pause();
-      audioRef.current.currentTime = 0;
+      // Optional toast or modal message
+      setModalMessage({
+        message: `Item ${actionType === "reject" ? "Rejected" : "Locked"}`,
+      });
+    } catch (error) {
+      console.error(`Item ${actionType} failed:`, error);
     }
+  };
+
+  const handleAction = (order, actionType) => {
+    if (order.__mode === "item") {
+      // Direct action for a single item
+      const item = order.items[0];
+      runItemProcedure(item.I_Code, actionType);
+    } else {
+      // Open modal for multiple item selection
+      setActionModal({
+        show: true,
+        type: actionType,
+        order,
+        selectedItems: [],
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (orders.length > prevOrdersCount.current) {
+      const audio = new Audio("/new_ticket.mp3");
+      audio.load();
+      audio.play().catch((err) => console.log("Autoplay blocked:", err));
+    }
+    prevOrdersCount.current = orders.length;
   }, [orders]);
 
   useEffect(() => {
@@ -74,11 +89,11 @@ function KitchenScreen() {
       try {
         const res = await fetch(
           `${config.apiBaseUrl}/orders?kds=${encodeURIComponent(
-            config.kdsName,
-          )}`,
+            config.kdsName
+          )}`
         );
         const data = await res.json();
-
+        console.log(data);
         if (Array.isArray(data)) {
           const orders = transformApiData(data);
           setOrders(orders);
@@ -99,8 +114,8 @@ function KitchenScreen() {
       try {
         const res = await fetch(
           `${config.apiBaseUrl}/summary?kds=${encodeURIComponent(
-            config.kdsName,
-          )}`,
+            config.kdsName
+          )}`
         );
         const data = await res.json();
         setSummary(data.Data || data);
@@ -118,58 +133,50 @@ function KitchenScreen() {
     const statusMap = {
       0: "Pending",
       1: "Accepted",
+      2: "Rejected"
     };
-
     const orderTypeMap = {
-      "Table billing": "Table",
+      "Table billing": "Table billing",
       "Dine-in": "Dine-in",
       "Take Away": "Take Away",
       Delivery: "Delivery",
-      zomato: "ZOMATO",
     };
-
     const orderStatusMap = {
       0: "Pending",
       1: "Deliverd",
     };
-
+    const lockedStatusMap = {
+      0:"Unlocked",
+      1:"Locked"
+    }
     const groupedOrders = {};
 
     apiData.forEach((item) => {
-      // GROUP BY BILL NO
-      const bill = item.BillNO;
-
-      if (!groupedOrders[bill]) {
-        groupedOrders[bill] = {
-          ID: item.ID,
-
-          // Keep KOT internally for API/printing
-          id: item.KOT_NO,
-          kotId: item.KOT_NO,
-
-          TokenNo: item.TokenNo,
+      const kot = item.KOT_NO;
+      if (!groupedOrders[kot]) {
+        groupedOrders[kot] = {
+          id: kot,
           I_Code: item?.I_Code || "",
           orderType: orderTypeMap[item.bill_type] || "Unknown",
           tableNo: item.TableName || "N/A",
-          stwd: item.stwd || "-",
           name: item.I_Name,
+          Cat_Type: item.Cat_Type,
           items: [],
-          status: statusMap[item.ack_status] || "Pending",
+          // status: statusMap[item.ack_status] || "Pending",
           timestamp: new Date(item.CreatedOn.replace("Z", "")).getTime(),
           comments: item.comments,
           Bill_NO: item.BillNO,
           orderStatus: orderStatusMap[item.order_status],
+          status:
+    item.IsLock === 1
+      ? "Locked"
+      : statusMap[item.ack_status] || "Pending"
         };
       }
-
-      groupedOrders[bill].items.push({
-        ID: item.ID,
-
-        // IMPORTANT: keep each item's actual KOT
-        KOT_NO: item.KOT_NO,
-
+      groupedOrders[kot].items.push({
         name: item.I_Name,
-        status: statusMap[item.ack_status] || "Pending",
+        Cat_Type: item.Cat_Type,
+        // status: statusMap[item.ack_status] || "Pending",
         I_Code: item?.I_Code || "",
         Bill_NO: item.BillNO,
         qty: String(item.Qty),
@@ -177,6 +184,10 @@ function KitchenScreen() {
         timestamp: new Date(item.CreatedOn).getTime(),
         orderStatus: orderStatusMap[item.order_status],
         orderType: orderTypeMap[item.bill_type] || "Unknown",
+        status:
+    item.IsLock === 1
+      ? "Locked"
+      : statusMap[item.ack_status] || "Pending"
       });
     });
 
@@ -185,7 +196,7 @@ function KitchenScreen() {
 
   const handleFilterChange = (filter, setFilter, value) => {
     setFilter((prev) =>
-      prev.includes(value) ? prev.filter((f) => f !== value) : [...prev, value],
+      prev.includes(value) ? prev.filter((f) => f !== value) : [...prev, value]
     );
   };
 
@@ -199,108 +210,6 @@ function KitchenScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleDeliver = async (order) => {
-    try {
-      // =================================================
-      // TAKE PRINT SNAPSHOT BEFORE ANY STATUS UPDATE
-      // =================================================
-
-      const printData = {
-        kotNo: order.__mode === "item" ? order.kotId : order.id,
-
-        billNo: order.Bill_NO || "-",
-
-        billType: order.orderType || "N/A",
-
-        tableName: order.tableNo || "-",
-
-        tokenNo: order.TokenNo || "-",
-
-        steward: order.stwd || "-",
-
-        items: order.items
-          .filter((item) => item.qty !== "0")
-          .map((item) => ({
-            name: item.name,
-            qty: item.qty,
-          })),
-      };
-
-      console.log("🧾 PRINT DATA:", printData);
-
-      // =================================================
-      // PRINT FIRST
-      // =================================================
-
-      if (printEnabled && printData.items.length > 0) {
-        try {
-          console.log(`🖨️ Printing using ${printMode}:`, printData);
-
-          switch (printMode) {
-            case "LAN":
-              await printKOTViaServer(printData);
-
-              break;
-
-            case "USB":
-              await printKOTViaUSB(printData);
-
-              break;
-
-            default:
-              throw new Error(`Invalid print mode: ${printMode}`);
-          }
-
-          console.log(`✅ KOT printed via ${printMode}`);
-        } catch (printError) {
-          console.error(`❌ ${printMode} printing failed:`, printError);
-
-          /*
-           * DO NOT mark Delivered
-           * if printing failed.
-           */
-
-          setModalMessage({
-            message: "Printing failed. Order not delivered.",
-
-            kotNo: order.__mode === "item" ? order.kotId : order.id,
-
-            orderType: order.orderType,
-          });
-
-          return;
-        }
-      }
-
-      // =================================================
-      // PRINT SUCCESSFUL
-      // NOW UPDATE STATUS
-      // =================================================
-
-      console.log("✅ Printing completed. Updating status...");
-
-      await ackStatus(order, "Delivered");
-
-      // =================================================
-      // UPDATE UI
-      // =================================================
-
-      setClickStage((prev) => ({
-        ...prev,
-        [order.id]: "delivered",
-      }));
-
-      setModalMessage({
-        message: "Order Delivered",
-
-        kotNo: order.__mode === "item" ? order.kotId : order.id,
-
-        orderType: order.orderType,
-      });
-    } catch (error) {
-      console.error("❌ Delivery/Print failed:", error);
-    }
-  };
   const ackStatus = async (order, newStatus = "Accepted") => {
     try {
       const kotId = order.kotId ?? order.id;
@@ -308,52 +217,44 @@ function KitchenScreen() {
 
       if (order.__mode === "item") {
         // ITEM VIEW: always a single item
-        const item = order.items?.[order.__itemIndex] ?? order.items?.[0];
+        const item = order.items?.[order.__itemIndex] ?? order.items?.[0]; // fallback to [0]
 
         if (!item) {
           console.error("No item found for item mode:", order);
           return;
         }
-        console.log("Sending:", {
-          ID: item.ID,
-          KOT_NO: item.KOT_NO ?? kotId,
-          I_Code: item.I_Code,
-          Bill_NO,
-        });
-        console.log("Order:", order);
-        console.log("Items:", order.items);
-        console.log("Selected Item:", item);
 
         await fetch(
-          `${config.apiBaseUrl}/accept?kds=${encodeURIComponent(config.kdsType)}`,
+          `${config.apiBaseUrl}/accept?kds=${encodeURIComponent(
+            config.kdsType
+          )}`,
           {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              ID: item.ID ?? item.id,
-              KOT_NO: item.KOT_NO ?? kotId,
+              KOT_NO: kotId,
               I_Code: item.I_Code || item.code,
               Bill_NO,
             }),
-          },
+          }
         );
       } else {
         // KOT VIEW: update all active items
         for (const item of order.items) {
-          if (item.qty === "0") continue;
-
+          if (item.qty === "0") continue; // skip cancelled
           await fetch(
-            `${config.apiBaseUrl}/accept?kds=${encodeURIComponent(config.kdsType)}`,
+            `${config.apiBaseUrl}/accept?kds=${encodeURIComponent(
+              config.kdsType
+            )}`,
             {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                ID: item.ID ?? item.id,
-                KOT_NO: item.KOT_NO ?? kotId,
+                KOT_NO: kotId,
                 I_Code: item.I_Code || item.code,
                 Bill_NO,
               }),
-            },
+            }
           );
         }
       }
@@ -361,42 +262,31 @@ function KitchenScreen() {
       // Update frontend state
       setOrders((prevOrders) =>
         prevOrders.map((o) => {
-          if (String(o.Bill_NO) !== String(Bill_NO)) return o;
+          if (String(o.id) !== String(kotId)) return o;
 
           if (order.__mode === "item") {
             const idx = order.__itemIndex ?? 0;
-
             return {
               ...o,
               items: o.items.map((it, i) =>
-                i === idx ? { ...it, status: newStatus } : it,
+                i === idx ? { ...it, status: newStatus } : it
+              ),
+            };
+          } else {
+            return {
+              ...o,
+              status: newStatus,
+              items: o.items.map((it) =>
+                it.qty !== "0" ? { ...it, status: newStatus } : it
               ),
             };
           }
-
-          return {
-            ...o,
-            status: newStatus,
-            items: o.items.map((it) =>
-              it.qty !== "0" ? { ...it, status: newStatus } : it,
-            ),
-          };
-        }),
+        })
       );
     } catch (error) {
       console.error("Accept failed:", error);
     }
   };
-
-  const getButtonStyle = (itemStatus, btnStatus) => ({
-    backgroundColor: itemStatus === btnStatus ? "#5cb85c" : "#f0f0f0",
-    color: itemStatus === btnStatus ? "#fff" : "#000",
-    padding: "4px 10px",
-    border: "1px solid #ccc",
-    borderRadius: "5px",
-    marginRight: "6px",
-    cursor: "pointer",
-  });
 
   const getCardStyleMerged = (order, now = Date.now()) => {
     const baseStyle = {
@@ -411,11 +301,11 @@ function KitchenScreen() {
     }
 
     const diffSecs = Math.floor(
-      (now - new Date(order.timestamp).getTime()) / 1000,
+      (now - new Date(order.timestamp).getTime()) / 1000
     );
     const diffMins = diffSecs / 60;
     const hasAcceptedItem = order.items.some(
-      (item) => item.status === "Accepted",
+      (item) => item.status === "Accepted"
     );
 
     // --- Timer overrides always win ---
@@ -481,28 +371,6 @@ function KitchenScreen() {
     return { style: baseStyle, shake: false };
   };
 
-  // const getCardStyleMerged = (order, now = Date.now()) => {
-  //   // Default style
-  //   let style = {
-  //     backgroundColor: order.items.some(item => item.status === "Accepted") ? "lightgreen" : "transparent",
-  //     border: "1px solid #ccc",
-  //     borderRadius: "12px",
-  //     transition: "border 0.3s ease, background-color 0.3s ease"
-  //   };
-
-  //   // --- TIMER LOGIC OVERRIDES ONLY BORDER ---
-  //   if (order.timestamp) {
-  //     const diffMins = Math.floor((now - new Date(order.timestamp).getTime()) / 60000);
-  //     if (diffMins >= 5) {
-  //       style.border = "2px solid red";
-  //     } else if (diffMins >= 3) {
-  //       style.border = "2px solid orange";
-  //     }
-  //   }
-
-  //   return style;
-  // };
-
   const getElapsedTime = (timestamp) => {
     const diffMs = Date.now() - timestamp;
     const totalSeconds = Math.floor(diffMs / 1000);
@@ -526,7 +394,7 @@ function KitchenScreen() {
         kotId: o.id, // preserve source KOT id
         __mode: "item",
         __itemIndex: idx,
-      })),
+      }))
     );
   }, [orders, viewMode]);
 
@@ -588,6 +456,131 @@ function KitchenScreen() {
     return kotOrders.length;
   };
 
+  const handlePrint = (order) => {
+  // Create a new popup window for printing
+  const printWindow = window.open("", "_blank", "width=800,height=800");
+
+  // Build print content dynamically
+  const htmlContent = `
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Print KOT</title>
+    <style>
+      @page { margin: 1mm; }
+      @media print {
+        body { margin:0; padding:0; -webkit-print-color-adjust: exact; }
+      }
+      body {
+        font-family: "Consolas";
+        font-size: 13px;
+        color: #000;
+        margin:0;
+        margin-right:10px;
+        -webkit-font-smoothing:antialiased;
+        font-weight:700;
+      }
+      .ticket {
+        width: 100%;
+        max-width: 500px;
+        margin: 0 auto;
+        box-sizing: border-box;
+      }
+      .header { font-size: 15px; font-weight:700; text-align:center; margin-bottom:6px; }
+      .subheader { font-size:13px; font-weight:700; margin-bottom:4px; text-align:left; }
+      .bold_line { border-top:2px dashed #000; margin:6px 0; }
+      .line { border-top:1px dashed #000; margin:6px 0; }
+      .meta { display:flex; font-size:12px; justify-content:space-between;}
+      .items { margin-top:1px; }
+      .item {
+        display:flex;
+        justify-content:space-between;
+        align-items:flex-start;
+        margin:0px;
+        gap:2px;
+      }
+      .item-name {
+        flex: 1 1 auto;
+        font-weight:700;
+        word-break:break-word;
+        white-space: normal;
+        font-size:12px;
+      }
+      .item-qty {
+        flex: 0 0 60px;
+        text-align: right;
+        font-weight:700;
+        font-size:12px;
+        min-width: 40px;
+      }
+      .footer { text-align:center; margin-top:8px; font-size:13px; font-weight:400; }
+    </style>
+  </head>
+  <body>
+    <div class="ticket">
+      <div class="header">${order.orderType} : ${order.tableNo || "N/A"}</div>
+      <div class="subheader">Bill: ${order.Bill_NO || "-"} | KOT: ${order.kotId || order.id}</div>
+      <div class="bold_line"></div>
+      <div class="meta">
+        <div>Date: ${new Date().toLocaleDateString()}</div>
+        <div>Time: ${new Date().toLocaleTimeString()}</div>
+      </div>
+      <div class="meta">
+        <div>ITEM</div>
+        <div>QTY</div>
+      </div>
+      <div class="line"></div>
+
+      <div class="items">
+        ${order.items
+          .map(
+            (item) => `
+              <div class="item">
+                <div class="item-name">
+                  ${item.name}${item.comments ? `<br/><small>${item.comments}</small>` : ""}
+                  ${
+                    item.lockstatus === "Locked"
+                      ? `<br/><span style='color:red;font-size:11px;'>[LOCKED]</span>`
+                      : item.status === "Rejected"
+                      ? `<br/><span style='color:#dc3545;font-size:11px;'>[REJECTED]</span>`
+                      : ""
+                  }
+                </div>
+                <div class="item-qty">x ${item.qty}</div>
+              </div>
+            `
+          )
+          .join("")}
+      </div>
+
+      <div class="line"></div>
+      <div class="meta">
+        <div>Items: ${order.items.length}</div>
+        <div>Status: ${
+          order.items.some((i) => i.lockstatus === "Locked")
+            ? "Locked"
+            : order.status
+        }</div>
+      </div>
+      <div class="footer">KDS PRINT</div>
+    </div>
+  </body>
+</html>`;
+
+
+  // Write to the new window
+  printWindow.document.open();
+  printWindow.document.write(htmlContent);
+  printWindow.document.close();
+
+  // Wait for content to load before printing
+  printWindow.onload = function () {
+    printWindow.print();
+    printWindow.close();
+  };
+};
+
+
   return (
     <>
       <div className="filters">
@@ -629,6 +622,22 @@ function KitchenScreen() {
           </button>
 
           <button
+            className="recall-btn"
+            onClick={() => setShowRecall(true)}
+            style={{
+              padding: "8px 16px",
+              background: showRecall ? "#007bff" : "#28a745", // blue for KOT, green for Item
+              color: "#fff",
+              border: "none",
+              borderRadius: "6px",
+              cursor: "pointer",
+              transition: "background 0.3s ease",
+            }}
+          >
+            Recall Orders
+          </button>
+
+          <button
             onClick={() => setShowSummary((prev) => !prev)}
             style={{
               padding: "8px 16px",
@@ -641,20 +650,6 @@ function KitchenScreen() {
             }}
           >
             {showSummary ? "Hide Summary" : "Show Summary"}
-          </button>
-          <button
-            onClick={handlePrintToggle}
-            style={{
-              padding: "8px 16px",
-              background: printEnabled ? "#007bff" : "#28a745",
-              color: "#fff",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-              transition: "background 0.3s ease",
-            }}
-          >
-            {printEnabled ? "Print on" : "Print off"}
           </button>
         </div>
 
@@ -673,7 +668,6 @@ function KitchenScreen() {
             </label>
           ))}
         </div>
-
         <div className="count">
           <div>
             Total Count: <strong>{getVisibleCardCount()}</strong>{" "}
@@ -718,21 +712,14 @@ function KitchenScreen() {
 
               return (
                 <div
-                  key={
-                    order.__mode === "item"
-                      ? `${order.Bill_NO}-${order.__itemIndex}`
-                      : order.Bill_NO
-                  }
+                  key={order.id}
                   className={`kitchen-card ${card.shake ? "shake" : ""}`} // shake class if needed
                   style={card.style} // updated styles
                 >
                   <div
                     className="Pressable-card"
-                    onClick={async () => {
-                      const orderId =
-                        order.__mode === "item"
-                          ? `${order.Bill_NO}-${order.__itemIndex}`
-                          : String(order.Bill_NO);
+                    onClick={() => {
+                      const orderId = order.id;
 
                       if (
                         !clickStage[orderId] ||
@@ -751,7 +738,18 @@ function KitchenScreen() {
                           orderType: order.orderType,
                         });
                       } else if (clickStage[orderId] === "accepted") {
-                        await handleDeliver(order);
+                        // Deliver order
+                        ackStatus(order, "Delivered");
+                        setClickStage((prev) => ({
+                          ...prev,
+                          [orderId]: "delivered",
+                        }));
+                        setModalMessage({
+                          message: "Order Delivered",
+                          kotNo:
+                            order.__mode === "item" ? order.kotId : order.id,
+                          orderType: order.orderType,
+                        });
                       }
                     }}
                   >
@@ -761,14 +759,14 @@ function KitchenScreen() {
                         .toLowerCase()
                         .replace(" ", "-")}`}
                     >
-                      <span className="ticket-id">
-                        {/* Token #{order.TokenNo} */}
-                        {order.orderType === "Table"
-                          ? `Table #${order.tableNo}`
-                          : `Token #${order.TokenNo}`}
+                      <span className="ticket-type">
+                        {order.orderType === "Table billing"
+                          ? `${order.orderType} - ${order.tableNo}`
+                          : order.orderType}
                       </span>
-                      <span className="ticket-type">{order.orderType}</span>
-                      <span className="ticket-id">Bill #{order.Bill_NO}</span>
+                      <span className="ticket-id">
+                        KOT #{order.__mode === "item" ? order.kotId : order.id}
+                      </span>
                     </div>
 
                     <ul className="kitchen-item-list">
@@ -782,26 +780,64 @@ function KitchenScreen() {
                               gap: "10px",
                             }}
                           >
-                            <div>
-                              <strong
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                              }}
+                            >
+                              {/* Veg/Non-veg indicator */}
+                              <div
                                 style={{
-                                  textDecoration:
-                                    item.qty === "0" ? "line-through" : "none",
+                                  width: "14px",
+                                  height: "14px",
+                                  border: `2px solid ${
+                                    item.Cat_Type === 0 ? "green" : "red"
+                                  }`,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  borderRadius: "2px",
+                                  flexShrink: 0,
                                 }}
                               >
-                                {item.name}
-                              </strong>
-                              <br />
-                              <span
-                                style={{
-                                  fontSize: "0.75rem",
-                                  color: "blue",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {item.comments}
-                              </span>
+                                <div
+                                  style={{
+                                    width: "6px",
+                                    height: "6px",
+                                    borderRadius: "50%",
+                                    backgroundColor:
+                                      item.Cat_Type === 0 ? "green" : "red",
+                                  }}
+                                ></div>
+                              </div>
+
+                              {/* Item name + comments */}
+                              <div>
+                                <strong
+                                  style={{
+                                    textDecoration:
+                                      item.qty === "0"
+                                        ? "line-through"
+                                        : "none",
+                                  }}
+                                >
+                                  {item.name}
+                                </strong>
+                                <br />
+                                <span
+                                  style={{
+                                    fontSize: "0.75rem",
+                                    color: "blue",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  {item.comments}
+                                </span>
+                              </div>
                             </div>
+
                             <div>
                               <strong
                                 style={{
@@ -827,12 +863,42 @@ function KitchenScreen() {
                         </li>
                       ))}
                     </ul>
-
+                  </div>
+                  <div className="Bottom-card">
+                    <button
+      className="btn-print"
+       onClick={() => handlePrint(order)} // or custom print function
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#007bff",
+        color: "#fff",
+        border: "none",
+        borderRadius: "6px",
+        padding: "6px 10px",
+        cursor: "pointer",
+      }}
+    >
+      <FaPrint size={16} />
+    </button>
                     <p className="kitchen-timer">
                       <strong>
                         Waiting: {getElapsedTime(order.timestamp)}
                       </strong>
                     </p>
+                    <button
+                      className="btn-reject"
+                      onClick={() => handleAction(order, "reject")}
+                    >
+                      Reject
+                    </button>
+                    <button
+                      className="btn-lock"
+                      onClick={() => handleAction(order, "lock")}
+                    >
+                      Lock
+                    </button>
                   </div>
                 </div>
               );
@@ -856,190 +922,101 @@ function KitchenScreen() {
         )}
         ;
       </div>
+      {showRecall && (
+        <div className="recall-modal-overlay">
+          <div className="recall-modal">
+            <button className="close-btn" onClick={() => setShowRecall(false)}>
+              ✖
+            </button>
+            <RecallScreen />
+          </div>
+        </div>
+      )}
 
-      {/* ===== MODAL (works for both modes) ===== */}
-      {/* {selectedData && (
+      {actionModal.show && (
         <div
           className="modal-overlay"
-          onClick={() => setSelection(null)}
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 1000,
-          }}
+          onClick={() => setActionModal({ show: false })}
         >
           <div
             className="modal-content"
             onClick={(e) => e.stopPropagation()}
             style={{
-              position: "relative",
               background: "#fff",
               padding: "20px",
               borderRadius: "10px",
-              maxHeight: "85vh",
-              width: "90%",
-              maxWidth: "600px",
-              display: "flex",
-              flexDirection: "column",
+              width: "400px",
+              textAlign: "center",
             }}
           >
-            <button
-              onClick={() => setSelection(null)}
-              style={{
-                position: "absolute",
-                top: "10px",
-                right: "10px",
-                background: "transparent",
-                border: "none",
-                fontSize: "1.8rem",
-                cursor: "pointer",
-                color: "#333",
-              }}
-            >
-              &times;
-            </button>
+            <h3 style={{ textTransform: "capitalize" }}>
+              {actionModal.type} Items (KOT #{actionModal.order.id})
+            </h3>
 
-            <h2 style={{ marginBottom: "10px" }}>
-              {selectedData.singleItemMode
-                ? `Item Details`
-                : `Order Details (#${selectedData.id})`}
-            </h2>
-
-            {!selectedData.singleItemMode && (
-              <>
-                <p style={{ marginBottom: 0 }}>Type: {selectedData.orderType}</p>
-                {selectedData.tableNo && (
-                  <p style={{ marginTop: "5px" }}>Table no: {selectedData.tableNo}</p>
-                )}
-              </>
-            )}
-
-            <div
-              style={{
-                overflowY: "auto",
-                flex: 1,
-                margin: "10px 0",
-                paddingRight: "5px",
-              }}
-            >
-              <ul
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: selectedData.singleItemMode
-                    ? "1fr"
-                    : "repeat(3, 1fr)",
-                  gap: "10px",
-                  listStyle: "none",
-                  padding: 0,
-                  margin: 0,
-                }}
-              >
-                {selectedData.items.map((item, index) => {
-                  // if singleItemMode, the index within the base order is selection.itemIndex
-                  const effectiveIndex = selectedData.singleItemMode
-                    ? selectedData.itemIndex
-                    : index;
-
-                  return (
-                    <li
-                      key={index}
-                      style={{
-                        border: "1px solid #232222ff",
-                        borderRadius: "8px",
-                        padding: "8px",
-                        display: "flex",
-                        flexDirection: "column",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <div>
-                        <strong>{item.name}</strong>
-                        <br />
-                        <span style={{ fontSize: ".85rem", color: "#777" }}>
-                          {item.comments}
-                        </span>
-                      </div>
-                      <div style={{ marginTop: "6px", display: "flex", gap: "6px" }}>
-                        <button
-                          style={getButtonStyle(item.status, "Pending")}
-                          // onClick={() =>
-                          //   updateItemStatus(selectedData.id, effectiveIndex, "Pending")
-                          // }
-                        >
-                          Pending
-                        </button>
-                        <button
-                          style={getButtonStyle(item.status, "Delivered")}
-                          // onClick={() =>
-                          //   updateItemStatus(selectedData.id, effectiveIndex, "Delivered")
-                          // }
-                        >
-                          Delivered
-                        </button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+            <div style={{ textAlign: "left", margin: "15px 0" }}>
+              {actionModal.order.items.map((item, idx) => (
+                <label
+                  key={idx}
+                  style={{ display: "block", marginBottom: "8px" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={actionModal.selectedItems.includes(item.I_Code)}
+                    onChange={() => {
+                      setActionModal((prev) => ({
+                        ...prev,
+                        selectedItems: prev.selectedItems.includes(item.I_Code)
+                          ? prev.selectedItems.filter(
+                              (code) => code !== item.I_Code
+                            )
+                          : [...prev.selectedItems, item.I_Code],
+                      }));
+                    }}
+                  />
+                  <span style={{ marginLeft: "8px" }}>
+                    {item.name} (x{item.qty})
+                  </span>
+                </label>
+              ))}
             </div>
 
-            <div
-              style={{
-                borderTop: "1px solid #ddd",
-                paddingTop: "12px",
-                display: "grid",
-                gridTemplateColumns: "repeat(2, 1fr)",
-                gap: "10px",
-              }}
-            >
+            <div style={{ marginTop: "15px" }}>
               <button
+                onClick={async () => {
+                  for (const code of actionModal.selectedItems) {
+                    await runItemProcedure(code, actionModal.type);
+                  }
+                  setActionModal({ show: false });
+                }}
                 style={{
-                  border: "2px solid #28a745",
-                  color: "#28a745",
-                  padding: "10px",
+                  backgroundColor: "#28a745",
+                  color: "#fff",
+                  padding: "8px 16px",
+                  border: "none",
                   borderRadius: "6px",
-                  fontWeight: "bold",
+                  marginRight: "10px",
                   cursor: "pointer",
                 }}
-                // onClick={() => {
-                //   if (selectedData.singleItemMode) {
-                //     updateItemStatus(selectedData.id, selectedData.itemIndex, "Delivered");
-                //   } else {
-                //     updateStatus(selectedData.id, "Delivered");
-                //     selectedData.items.forEach((_, idx) =>
-                //       updateItemStatus(selectedData.id, idx, "Delivered")
-                //     );
-                //   }
-                //   setSelection(null);
-                // }}
               >
-                Delivered
+                Confirm
               </button>
-
               <button
+                onClick={() => setActionModal({ show: false })}
                 style={{
-                  border: "2px solid #dc3545",
-                  color: "#dc3545",
-                  padding: "10px",
+                  backgroundColor: "#dc3545",
+                  color: "#fff",
+                  padding: "8px 16px",
+                  border: "none",
                   borderRadius: "6px",
-                  fontWeight: "bold",
                   cursor: "pointer",
                 }}
-                onClick={() => setSelection(null)}
               >
-                close
+                Cancel
               </button>
             </div>
           </div>
         </div>
-      )} */}
+      )}
 
       {modalMessage && (
         <div

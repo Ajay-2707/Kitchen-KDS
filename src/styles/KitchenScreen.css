@@ -1,15 +1,19 @@
+
+.body{
+overflow-x: hidden;
+}
 .filters {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  /* padding: 16px; */
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
   font-family: Arial, sans-serif;
+   padding: 5px 16px;  
 }
 
 .order-filters,
@@ -17,11 +21,16 @@
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
-  border: 1px solid black;
-  border-radius: 5px;
-  padding: 5px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 6px 10px;
   margin-left: 10px;
+  margin-right: 10px;
+
+  background: #fff;
 }
+
+ 
 
 .filter-lable {
   font-size: 14px;
@@ -39,7 +48,7 @@
 
 .view-toggle {
   display: flex;
-  gap: 12px;
+  gap: 4px;
 }
 
 .view-toggle button {
@@ -49,41 +58,86 @@
   border-radius: 8px;
   border: none;
   cursor: pointer;
+  background: #e5e7eb;
   transition: all 0.3s ease;
 }
 
 .view-toggle button:hover {
   opacity: 0.9;
+  background: #d1d5db;
 }
 
 .status-filters label {
   font-size: 14px;
   color: #4b5563;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .filters div p {
   margin: 0;
   font-size: 14px;
-  color: #374151;
-  color: #000;
   font-weight: 500;
+  color: #000;
 }
 
+/* 
 .filters div:last-of-type {
   background: #f3f4f6;
   padding: 8px 12px;
   border-radius: 8px;
+} */
+
+.Count {
+  display: flex;
 }
 
-/* Responsive Adjustments */
+/* ✅ Responsive Adjustments */
 @media (max-width: 768px) {
   .filters {
-    flex-direction: column;
-    gap: 15px;
+    align-items: flex-start;
+    gap: 20px;
+    justify-content: center;
+
+    .count {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin: 10px 0px;
+      margin-top: -10px;
+    }
   }
 
+  .order-filters,
   .status-filters,
-  .order-filters {
+  .view-toggle {
+    width: 100%;
+    justify-content: center;
+  }
+
+}
+
+@media (max-width: 576px) {
+  .filters {
+    padding: 10px;
+    gap: 12px;
+  }
+
+  .order-filters,
+  .status-filters {
+    /* flex-direction: column; */
+    gap: 8px;
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .view-toggle {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .view-toggle button {
     width: 100%;
   }
 }
@@ -103,8 +157,8 @@
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   /* gap: 1rem; */
   align-items: start;
-  margin-left: -16px;
-  width: auto;
+  margin-left: -10px;
+  width: 100%;
   /* grid-auto-flow: dense; */
 }
 
@@ -125,8 +179,10 @@
   flex-direction: column;
   justify-content: space-between; */
 }
+
 .kitchen-grid-column {
-  padding-left: 10px; /* gutter size */
+  padding-left: 10px;
+  /* gutter size */
   background-clip: padding-box;
 }
 
@@ -144,7 +200,7 @@
   flex-direction: column;
   justify-content: flex-start;
   width: 100%;
-   box-sizing: border-box;
+  box-sizing: border-box;
 }
 
 
@@ -189,7 +245,12 @@
   background: #198754;
   /* Green */
 }
+
 .table-billing .ticket-type {
+  background: #7e7ef3;
+  /* Green */
+}
+.table .ticket-type {
   background: #7e7ef3;
   /* Green */
 }
@@ -197,6 +258,11 @@
 .delivery .ticket-type {
   background: #fd7e14;
   /* Orange */
+}
+
+.zomato .ticket-type {
+  background: #ff0000;
+  /* Red */
 }
 
 .ticket-id {
@@ -247,11 +313,38 @@
   color: #198754;
 }
 
+.Bottom-card {
+  display: flex;
+  align-items: center; /* vertically center items */
+  justify-content: space-between; /* space items evenly */
+  gap: 10px; /* optional spacing between elements */
+  padding: 8px;
+}
+
 .kitchen-timer {
-  text-align: center;
+  font-size: 13px;
   margin: 0;
   padding: 0;
+  text-align: center;
 }
+
+.btn-reject{
+  background: linear-gradient(90deg, #fb7979, #fc1717);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 15px;
+  cursor: pointer;
+}
+.btn-lock{
+  background: linear-gradient(90deg, #417bf9, #003b63); 
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 15px;
+  cursor: pointer;
+}
+
 
 /* Action Buttons */
 .kitchen-buttons {
@@ -425,6 +518,35 @@
   border-bottom: none;
 }
 
+/* @keyframes shake {
+  0% { transform: translateX(0); }
+  20% { transform: translateY(-4px); }
+  40% { transform: translateY(4px); }
+  60% { transform: translateY(-4px); }
+  80% { transform: translateY(4px); }
+  100% { transform: translateY(0); }
+}
+
+.shake {
+  animation: shake 0.5s infinite;
+} */
+
+@keyframes shake-rotate {
+  0%   { transform: rotate(0deg); }
+  20%  { transform: rotate(0deg); }   /* clockwise */
+  40%  { transform: rotate(0deg); }  /* anticlockwise */
+  60%  { transform: rotate(0deg); }
+  80%  { transform: rotate(-3deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.kitchen-card.shake {
+  animation: shake-rotate 1s infinite;
+  transform-origin: center center; /* rotate around center */
+}
+
+
+
 .pending-count {
   font-weight: 700;
   color: #1f2937;
@@ -434,10 +556,124 @@
   0% {
     box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
   }
+
   50% {
     box-shadow: 0 0 10px 5px rgba(40, 167, 69, 0.7);
   }
+
   100% {
     box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
   }
 }
+
+.recall-btn {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.recall-btn:hover {
+  background-color: #0056b3;
+}
+
+/* Dark background */
+.recall-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Modal box */
+.recall-modal {
+  width: 80%;
+  max-width: 1200px;
+  height: 80%;
+  background: #fff;
+  border-radius: 12px;
+  padding: 15px;
+  overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+}
+
+/* Scroll inside modal */
+.recall-content {
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* HEADER */
+.recall-header-bar {
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 2;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 10px 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.recall-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* CLOSE BUTTON */
+.recall-close-btn {
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 5px 10px;
+  border-radius: 6px;
+  transition: background 0.2s ease;
+}
+
+.recall-close-btn:hover {
+  background: #f2f2f2;
+}
+
+.recall-item {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.recall-card-footer {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.recall-action-btn {
+  background: #007bff;
+  color: #fff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.recall-action-btn:hover {
+  background: #0056b3;
+}
+

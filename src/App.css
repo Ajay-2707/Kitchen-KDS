@@ -5,6 +5,7 @@
   font-family: Arial, sans-serif;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 .watermark {
   text-align: center;
@@ -21,8 +22,9 @@
 
 /* Navigation Styles */
 .nav-header {
-  background-color: #2d2d2d;
+  background-color: #33455e;
   color: white;
+  height: 45px;
   /* padding: 0 2rem; */
   display: flex;
   align-items: center;
@@ -66,24 +68,12 @@ margin-right: 20px;
   color: #ffb400;
 }
 
-/* Global Container */
-.app-container {
-  background-color: #f8f9fa;
-  min-height: 100vh;
-}
-
-/* Placeholder Kitchen Screen */
-.kitchen-screen {
-  padding: 2rem;
-  font-size: 1.5rem;
-}
-
-
 /* Make Navigation Responsive */
 @media (max-width: 768px) {
   .nav-header {
-    flex-direction: column;
+    flex-direction: row;
     text-align: center;
+    font-size: small;
   }
   .nav-links {
     margin-top: 0.5rem;
@@ -115,5 +105,57 @@ margin-right: 20px;
 
 .menu-dropdown ul li:hover {
   background: #555;
+}
+/* Wrapper to align toggle + text properly */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;        /* space between toggle and text */
+  cursor: pointer;  
+}
+
+/* Hide checkbox */
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* Toggle Track */
+.slider {
+  position: relative;
+  width: 46px;
+  height: 24px;
+  background-color: #ccc;
+  border-radius: 34px;
+  transition: 0.3s;
+}
+
+/* Toggle Circle */
+.slider:before {
+  content: "";
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.3s;
+}
+
+/* When checked → Green background */
+.switch input:checked + .slider {
+  background-color: #4CAF50;
+}
+
+/* When checked → Circle moves right */
+.switch input:checked + .slider:before {
+  transform: translateX(22px);
+}
+
+/* Rounded styling */
+.slider.round {
+  border-radius: 34px;
 }
 

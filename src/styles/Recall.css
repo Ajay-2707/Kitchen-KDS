@@ -1,0 +1,222 @@
+/* ===== MAIN CONTAINER ===== */
+.recall-container {
+  padding: 16px 20px;
+  background: #f9fafb;
+  min-height: 100vh;
+  font-family: "Poppins", sans-serif;
+}
+
+/* ===== HEADER ===== */
+.recall-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  /* background: #1e3a8a; */
+  /* color: white; */
+  padding: 10px 18px;
+  border-radius: 8px;
+  /* box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); */
+}
+
+.recall-header {
+  display: flex;
+  justify-content: center;   /* center horizontally */
+  align-items: center;       /* center vertically */
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 600;
+  padding: 12px 0;
+  border-radius: 8px;
+  margin-bottom: 15px;
+
+}
+
+
+/* ===== GRID ===== */
+.recall-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+/* ===== CARD DESIGN ===== */
+.recall-card {
+  border-radius: 12px;
+  background: #e9ffe9;
+  border: 2px solid #16a34a;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.recall-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* ===== TOP SECTION ===== */
+.recall-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.tag {
+  color: white;
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* ===== TAG COLORS ===== */
+.tag-dinein {
+  background: #2563eb;
+}
+.tag-takeaway {
+  background: #16a34a;
+}
+.tag-delivery {
+  background: #f97316;
+}
+.tag-tablebilling {
+  background: #8b5cf6;
+}
+.tag-default {
+  background: #6b7280;
+}
+
+.kot-tag {
+  font-weight: 600;
+  color: #111827;
+  font-size: 0.85rem;
+}
+
+/* ===== BODY ===== */
+.recall-body {
+  background: #f0fdf4;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 4px;
+  flex-grow: 1;
+  font-weight: bold;
+  color: #555;
+}
+
+.recall-body span {
+  font-size: 0.8rem;
+  color: #065f46;
+  font-weight: 500;
+  margin-left: 6px;
+}
+
+.recall-body h4 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #111;
+  margin: 4px 0;
+}
+
+.recall-body ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.recall-body li {
+  font-size: 0.85rem;
+  border-bottom: 1px dashed #d1d5db;
+  padding: 4px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* ===== FOOTER ===== */
+.recall-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #d1d5db;
+}
+
+.recall-footer strong {
+  color: #111827;
+  font-size: 0.8rem;
+}
+
+.recall-footer span {
+  font-size: 0.8rem;
+  color: #065f46;
+  margin-right: 6px;
+}
+
+.recall-footer button {
+  background: linear-gradient(90deg, #2563eb, #1e40af);
+  color: #fff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.recall-footer button:hover {
+  background: linear-gradient(90deg, #1d4ed8, #1e3a8a);
+  transform: scale(1.05);
+}
+
+/* ===== MODAL ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 200;
+  backdrop-filter: blur(2px);
+}
+
+.modal-content {
+  background: #fff;
+  color: #111;
+  padding: 14px 22px;
+  border-radius: 10px;
+  font-weight: 600;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ===== EMPTY STATE ===== */
+.no-orders {
+  text-align: center;
+  color: #6b7280;
+  font-style: italic;
+  padding: 24px;
+  background: #f3f4f6;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.05);
+}
